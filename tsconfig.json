@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    // 别名
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@Core/*": ["src/core/*"],
+      "@Core": ["src/core"],
+      "@Shape/*": ["src/Shape/*"],
+      "@Shape": ["src/Shape"],
+      "@Utils/*": ["src/Utils/*"],
+      "@Utils": ["src/Utils"],
+      "@Events/*": ["src/Events/*"],
+      "@Events": ["src/Events"],
+    }
+  },
+  "include": ["src"]
+}
