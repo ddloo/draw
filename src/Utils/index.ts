@@ -40,3 +40,18 @@ export function debounce<T extends (...args: any[]) => any>(
     }, delay);
   };
 }
+
+/** 节流 */
+export function throttle<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number = 16
+): (...args: Parameters<T>) => void {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  return (...args: Parameters<T>) => {
+    if (timer !== null) return;
+    timer = setTimeout(() => {
+      fn(...args);
+      timer = null;
+    }, delay);
+  };
+}
