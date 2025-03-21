@@ -1,5 +1,7 @@
 import { Shape } from "@/core/Shape/Shape";
 
+export const CAPTURE_NAME = "capture";
+
 export enum BubbleEventType {
   onClick = "click",
   onMouseEnter = "mouseenter",
@@ -18,15 +20,45 @@ export enum CaptureEventType {
   onMouseUp = "capturemouseup",
 }
 
-export type OriginEventHandler<T = Shape> = (target: T, event: MouseEvent) => any;
-export type EventsType = BubbleEventType | CaptureEventType;
-export interface EventWithStop {
-  target: MouseEvent;
+export enum FocusEventType {
+  onFocus = "focus",
+  onBlur = "blur",
+}
+
+export enum CaptureFocusEventType {
+  onFocus = `capturefocus`,
+  onBlur = `captureblur`,
+}
+
+export type OriginEventHandler<T = Shape> = (
+  target: T,
+  event: MouseEvent
+) => any;
+export type EventsType =
+  | BubbleEventType
+  | CaptureEventType
+  | FocusEventType
+  | CaptureFocusEventType;
+export type EventListenerType =
+  | `${BubbleEventType}`
+  | `${FocusEventType}`;
+
+// 事件定义
+export type CVMouseEvent = MouseEvent;
+export type CVFocusEvent<T = Shape> = { shape: T };
+
+export type CVEvent = CVMouseEvent | CVFocusEvent;
+
+export interface EventWithStop<T> {
+  target: T;
   stopPropagation: () => void;
 }
 
 // 修改 EventHandler 类型定义
-export type EventHandler<T = Shape> = (event: EventWithStop, target: T) => void;
+export type EventHandler<Event, T = Shape> = (
+  event: EventWithStop<Event>,
+  target: T
+) => void;
 
 export const WindowsEventKeys = {
   Backspace: "Backspace",

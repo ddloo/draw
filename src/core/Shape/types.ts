@@ -4,7 +4,6 @@ import { type Shape } from "./Shape";
 
 export const ROOT_ID = "root";
 export const CAPTURE_NAME = "capture";
-export const boxSize = 10;
 
 export type ShapeColor = ColorType | `${ColorType}` | Color | `#${string}`;
 
@@ -59,6 +58,18 @@ export interface ShapeBehaviorOptions {
   active?: boolean;
 }
 
+export const ShapePositionOrigin = {
+  Center: "center",
+  TopLeft: "topLeft",
+  TopCenter: "topCenter",
+  TopRight: "topRight",
+  BottomLeft: "bottomLeft",
+  BottomCenter: "bottomCenter",
+  BottomRight: "bottomRight",
+} as const;
+
+export type ShapePositionOrigin = (typeof ShapePositionOrigin)[keyof typeof ShapePositionOrigin];
+
 export type ShapeConstructorOptions = Partial<{
   /** x 坐标 */
   x: number;
@@ -84,6 +95,13 @@ export type ShapeConstructorOptions = Partial<{
   rotation?: number;
   /** 鼠标样式 */
   cursor?: CanvasCursorType;
+  /** pointer-events, 是否穿透鼠标事件，请注意，它会影响子元素
+   *  
+   * none - 穿透鼠标事件
+   *  
+   * auto - 默认值，不穿透鼠标事件
+   */
+  pointerEvents?: 'auto' | 'none';
 }> &
   ShapeBehaviorOptions;
 
@@ -93,3 +111,11 @@ export interface IBoundingBox {
   top: number;
   bottom: number;
 }
+
+export const EventType = {
+  UpdateShape: "updateShape",
+  FocusShape: "focusShape",
+  BlurShape: "blurShape"
+} as const;
+
+export type EventType = (typeof EventType)[keyof typeof EventType];

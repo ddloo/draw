@@ -17,7 +17,7 @@ export function interval(callback: () => any, delay: number) {
     }, delay);
   }
 
-  performWork();
+  timer.id = performWork();
 
   return timer;
 }

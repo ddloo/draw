@@ -38,15 +38,21 @@ export class ShapeRoot {
    * @description 递归删除子节点
    * @param id 要删除的图形 id
    * @param isFirstDeep 是否直遍历第一层
+   * 
+   * @returns 被删除的图形
    */
-  removeShape(id: string, isFirstDeep = false): void {
+  removeShape(id: string, isFirstDeep = false): Shape | undefined {
     for (let i = 0; i < this._root.children.length; i++) {
       const shape = this._root.children[i];
       if (shape.id === id) {
         this._root.children.splice(i, 1);
         this._nodeMap.delete(id);
+        return shape;
       } else if (!isFirstDeep) {
-        shape.removeChild(id);
+        const deleteNode = shape.removeChild(id);
+        if(deleteNode) {
+          return deleteNode;
+        }
       }
     }
   }
@@ -75,8 +81,12 @@ export class ShapeRoot {
     }
   }
 
+  private _isNonePointerEvents(node: Shape) {
+    return node.pointerEvents === 'none';
+  }
+
   /** 从坐标点获取最上层的图形 */
-  findShapeFromPoint(x: number, y: number): Shape | null {
+  findShapeFromPoint(x: number, y: number, isHandlePointerEvents = false): Shape | null {
     // 要获取优先级最高的节点，也就是要从树的最右节点开始遍历
     // 遍历顺序为 右节点->左节点->父节点，这里要模拟树的遍历
 
@@ -97,6 +107,9 @@ export class ShapeRoot {
         // null 标识节点已经子节点已经遍历完了
         // 这时候获取节点
         node = stack.pop() as Shape;
+        if (isHandlePointerEvents && this._isNonePointerEvents(node)) {
+          continue;
+        }
         // 误差在 5 像素
         if (node.isPointInShape(x, y, 5)) {
           return node;

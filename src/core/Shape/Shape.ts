@@ -1,11 +1,17 @@
 import { getLastSetValue } from "@Utils";
 import { generateUniqueId } from "@Utils/Str";
 import { Color, ColorType } from "../Color";
-import { Events, CaptureEventType } from "@Events";
+import { emitter, Events } from "@Events";
 // TODO: 用矩阵运算代替 Vector2 运算
 // import { Matrix } from "../Matrix";
 import { Vector2 } from "../Vector2";
-import { CanvasCursorType, IBoundingBox, ShapeColor, ShapeConstructorOptions } from "./types";
+import {
+  CanvasCursorType,
+  EventType,
+  IBoundingBox,
+  ShapeColor,
+  ShapeConstructorOptions,
+} from "./types";
 import { BoundingBox } from "./BoundingBox";
 
 export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
@@ -26,6 +32,7 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
   private _rotation = 0;
   private _active = false;
   private _cursor: CanvasCursorType | undefined = undefined;
+  private _pointerEvents: 'auto' | 'none' | undefined = undefined;
   // 自己本身的属性[结束]
 
   // 包围盒
@@ -41,13 +48,14 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
   private _absoluteRotation: number = 0;
   private _absoluteScaleSize: Vector2 = Vector2.one();
   private _absolutePosition: Vector2 = Vector2.zero();
+  private _absolutePointerEvents: 'auto' | 'none' = 'auto';
 
   constructor(options: ShapeConstructorOptions = {}) {
     super();
     let { strokeColor, fillColor, lineWidth } = options;
-    this._fillColor = fillColor ? this._getColor(fillColor) : this._emptyColor;
+    this._fillColor = fillColor ? this.getColor(fillColor) : this._emptyColor;
     this._strokeColor = strokeColor
-      ? this._getColor(strokeColor)
+      ? this.getColor(strokeColor)
       : this._emptyColor;
     this._lineWidth = lineWidth || 1;
     this._position = this._absolutePosition = new Vector2(
@@ -67,9 +75,11 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
     this._fillOpacity = this._absoluteFillOpacity = options.fillOpacity || 1;
     this._active = Boolean(options.active);
     this._cursor = options.cursor;
+    this._pointerEvents = options.pointerEvents;
+    this._absolutePointerEvents = options.pointerEvents || 'auto';
   }
 
-  private _getColor(color: ShapeColor) {
+  protected getColor(color: ShapeColor) {
     if (color instanceof Color) {
       return color;
     }
@@ -83,6 +93,7 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
     const isUpdatePosition = this._updateAbsolutePosition();
     const isUpdateRotation = this._updateAbsoluteRotation();
     const isUpdateScale = this._updateAbsoluteScale();
+    const isUpdatePointerEvents = this._updateAbsolutePointerEvents();
 
     if (
       isUpdateOpacity ||
@@ -93,7 +104,24 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
       this._isUpdateBoxSize = true;
       this._isUpdate = true;
       this._propagateUpdate();
+    } else if(isUpdatePointerEvents) {
+      this._isUpdate = true;
+      this._propagateUpdate();
     }
+  }
+
+  private _updateAbsolutePointerEvents() {
+    if(this._pointerEvents) {
+      const oldAbsolutePointerEvents = this._absolutePointerEvents;
+      this._absolutePointerEvents = this._pointerEvents;
+      return oldAbsolutePointerEvents !== this._absolutePointerEvents;
+    } else if(this._parent) {
+      const oldAbsolutePointerEvents = this._absolutePointerEvents;
+      this._absolutePointerEvents = this._parent._absolutePointerEvents;
+      return oldAbsolutePointerEvents !== this._absolutePointerEvents;
+    }
+
+    return false;
   }
 
   private _updateAbsolutePosition() {
@@ -158,10 +186,26 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
   protected abstract onTranslate(dx: number, dy: number): void;
   /** 旋转 */
   protected abstract onRotate(angle: number): void;
+  /** 获得焦点函数 - 默认为空函数 */
+  protected onShapeFocus = (event?: any, isCapture?: boolean) => null;
+  /** 失去焦点函数 - 默认为空函数 */
+  protected onShapeBlur = (event?: any, isCapture?: boolean) => null;
   /** 计算包围盒 */
   protected abstract calculateBoundingBox(
     ctx?: CanvasRenderingContext2D
   ): IBoundingBox | null;
+
+  /** 获得焦点 */
+  focus(event?: any, isCapture?: boolean) {
+    this.onShapeFocus(event, isCapture);
+    emitter.emit(EventType.FocusShape, { shape: this, event, isCapture });
+  }
+
+  /** 失去焦点 */
+  blur(event?: any, isCapture?: boolean) {
+    this.onShapeBlur(event, isCapture);
+    emitter.emit(EventType.BlurShape, { shape: this, event, isCapture });
+  }
 
   /** 获取包围盒 */
   getBoundingBox(ctx?: CanvasRenderingContext2D) {
@@ -191,7 +235,7 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
       const rotatedPoint = new Vector2(x - center.x, y - center.y).rotate(
         -this.absoluteRotation
       );
-      
+
       x = rotatedPoint.x + center.x;
       y = rotatedPoint.y + center.y;
     }
@@ -264,14 +308,18 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
 
   /** 删除子节点 */
   removeChild(id: string) {
+    let deletedNode: Shape | undefined = undefined;
     this.traverseTree((node) => {
       if (node.id === id) {
         node.parent = null;
         node._children.delete(node);
         node._childrenMap.delete(id);
+        deletedNode = node;
         return false;
       }
     }, true);
+
+    return deletedNode as (Shape | undefined);
   }
 
   /** 获取子节点 */
@@ -319,7 +367,7 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
 
   /** 描边颜色 */
   set strokeColor(color: ShapeColor) {
-    this._strokeColor = this._getColor(color);
+    this._strokeColor = this.getColor(color);
   }
 
   /** 填充颜色 */
@@ -329,7 +377,7 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
 
   /** 填充颜色 */
   set fillColor(color: ShapeColor) {
-    this._fillColor = this._getColor(color);
+    this._fillColor = this.getColor(color);
   }
 
   /** 线宽 */
@@ -500,5 +548,15 @@ export abstract class Shape<T extends Shape<T> = any> extends Events<T> {
 
   protected set isUpdateBoxSize(isUpdateBoxSize: boolean) {
     this._isUpdateBoxSize = isUpdateBoxSize;
+  }
+
+  /** 穿透指针事件 */
+  get pointerEvents() {
+    return this._absolutePointerEvents;
+  }
+
+  set pointerEvents(pointerEvents: 'auto' | 'none') {
+    this._pointerEvents = pointerEvents;
+    this._updateAbsoluteProps();
   }
 }

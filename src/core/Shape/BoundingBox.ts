@@ -10,11 +10,11 @@ export class BoundingBox {
   private _top: number = 0;
   private _bottom: number = 0;
 
-  constructor(box: IBoundingBox) {
-    this._left = box.left;
-    this._right = box.right;
-    this._top = box.top;
-    this._bottom = box.bottom;
+  constructor(box?: IBoundingBox) {
+    this._left = box?.left ?? 0;
+    this._right = box?.right ?? 0;
+    this._top = box?.top ?? 0;
+    this._bottom = box?.bottom ?? 0;
   }
 
   get left(): number {

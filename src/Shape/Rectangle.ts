@@ -10,7 +10,7 @@ interface RectangleOptions extends ShapeConstructorOptions {
   height?: number;
 }
 
-class Rectangle extends Shape {
+class Rectangle extends Shape<Rectangle> {
   private _width: number;
   private _height: number;
 

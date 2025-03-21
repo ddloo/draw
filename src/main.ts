@@ -42,6 +42,7 @@ const rect1 = new Rectangle({
   y: 200,
   lineWidth: 2,
   strokeColor: "yellow",
+  // pointerEvents: 'none',
   active: true,
   cursor: "pointer"
 });
@@ -51,7 +52,9 @@ const text1 = new Text({
   fontFamily: "Arial",
   x: 50,
   y: 50,
-  fillColor: "blue",
+  fillColor: 'magenta',
+  editable: false,
+  active: true,
 });
 path3.lineTo(100, 100);
 path3.lineTo(200, 200);
@@ -76,7 +79,7 @@ setTimeout(() => {
   // path3.translate(100, 100);
   circle1.scale(0.8);
   // circle1.opacity(0.5);
-  text1.direction = 'rtl';
+  // text1.direction = 'rtl';
   path3.strokeColor = "cyan";
   scene.render();
 }, 2000);
@@ -94,6 +97,7 @@ circle1.scale(2);
 // }
 rect1.scale(2);
 rect1.opacity(0.5);
+rect1.rotate(45);
 
 // rect1.rotate(45);
 // rect1.parent = circle1;
@@ -101,6 +105,18 @@ rect1.opacity(0.5);
 scene.addShape(path3);
 scene.addShape(text1);
 scene.addShape(rect1);
+
+rect1.onClick = (e, shape) => {}
+
+rect1.onBlur = (e, shape) => {
+  console.log(333, e.target.shape);
+}
+
+rect1.focus();
+
+rect1.onFocus = (e) => {
+  e.stopPropagation();
+}
 // scene.addShape(circle1);
 
 // function getLineWidth(pressTime: number): number {

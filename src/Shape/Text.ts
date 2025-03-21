@@ -1,7 +1,8 @@
+import { CVFocusEvent, emitter, EventHandler } from "@/Events";
 import { clearInterval, interval } from "@/Utils";
 import { rotateByDegrees } from "@/Utils/Math";
 import { Shape } from "@/core/Shape/Shape";
-import { CanvasCursorType, ShapeConstructorOptions } from "@/core/Shape/types";
+import { CanvasCursorType, EventType, ShapeConstructorOptions } from "@/core/Shape/types";
 import { Vector2 } from "@/core/Vector2";
 
 interface TextOptions extends ShapeConstructorOptions {
@@ -28,6 +29,7 @@ class Text extends Shape<Text> {
   private _lineHeight: number = 4;
   private _userSelect: boolean = true;
   private _editable: boolean = true;
+  private _selectionColor: string = "#1890ff";
 
   // 绘制光标/编辑
   private _isEditing: boolean = false;
@@ -38,6 +40,8 @@ class Text extends Shape<Text> {
   private _cursorPosition: number = 0;
   /** 光标闪烁时间 */
   private _cursorBlinkInterval: { id: NodeJS.Timeout } | null = null;
+  /** 是否正在选择文本 */
+  private _isSelecting: boolean = false;
 
   constructor(options: TextOptions = {}) {
     super({ cursor: CanvasCursorType.Text, ...options });
@@ -49,11 +53,14 @@ class Text extends Shape<Text> {
     this._direction = options.direction || "inherit";
     this._userSelect = options.userSelect || true;
     this._editable = options.editable || true;
+    this._selectionColor = options.selectionColor || "#1890ff";
     // TODO:针对 lineHeight，现有先暂不支持，实现较为复杂
     // this._lineHeight = options.lineHeight || 4;
   }
 
-  /** 内部使用的函数，不建议外部调用 */
+  /** 开始编辑
+   * @private
+   */
   public readonly __startEditing = () => {
     this._isEditing = true;
     this._cursorPosition = this._text.length;
@@ -62,6 +69,9 @@ class Text extends Shape<Text> {
     this._startCursorBlink();
   };
 
+  /** 停止编辑
+   * @private
+   */
   public readonly __stopEditing = () => {
     this._isEditing = false;
     this._cursorVisible = false;
@@ -69,10 +79,61 @@ class Text extends Shape<Text> {
     this._stopCursorBlink();
   };
 
+  /** 开始选择文本
+   * @private
+   */
+  public readonly __startSelecting = (position: number) => {
+    if (!this._userSelect) return;
+    
+    this._isSelecting = true;
+    this._selectionStart = position;
+    this._selectionEnd = position;
+    this._cursorPosition = position;
+    this.isUpdate = true;
+  };
+
+  /** 更新选择范围
+   * @private
+   */
+  public readonly __updateSelection = (position: number) => {
+    if (!this._isSelecting || !this._userSelect) return;
+    
+    this._selectionEnd = position;
+    this._cursorPosition = position;
+    this.isUpdate = true;
+  };
+
+  /** 结束选择文本
+   * @private
+   */
+  public readonly __stopSelecting = () => {
+    this._isSelecting = false;
+    // 确保选区开始位置总是小于结束位置
+    if (this._selectionStart > this._selectionEnd) {
+      [this._selectionStart, this._selectionEnd] = [this._selectionEnd, this._selectionStart];
+    }
+    this.isUpdate = true;
+  };
+
+  /** 获取当前选中的文本 */
+  public getSelectedText(): string {
+    if (this._selectionStart === this._selectionEnd) return "";
+    const start = Math.min(this._selectionStart, this._selectionEnd);
+    const end = Math.max(this._selectionStart, this._selectionEnd);
+    return this._text.substring(start, end);
+  }
+
+  /** 清除选区 */
+  public clearSelection(): void {
+    this._selectionStart = this._selectionEnd = this._cursorPosition;
+    this.isUpdate = true;
+  }
+
   private _startCursorBlink(): void {
     this._cursorBlinkInterval = interval(() => {
       this._cursorVisible = !this._cursorVisible;
       this.isUpdate = true;
+      emitter.emit(EventType.UpdateShape, this);
     }, 500);
   }
 
@@ -80,6 +141,7 @@ class Text extends Shape<Text> {
     if (this._cursorBlinkInterval) {
       clearInterval(this._cursorBlinkInterval.id);
       this._cursorBlinkInterval = null;
+      emitter.emit(EventType.UpdateShape, this);
     }
   }
 
@@ -126,6 +188,20 @@ class Text extends Shape<Text> {
     context.textBaseline = this._textBaseline;
     context.direction = this._direction;
 
+    // 绘制选区
+    if (this._selectionStart !== this._selectionEnd && this._userSelect) {
+      const start = Math.min(this._selectionStart, this._selectionEnd);
+      const end = Math.max(this._selectionStart, this._selectionEnd);
+      
+      // 计算选区位置
+      const startX = this.measureText(this._text.slice(0, start))!.width;
+      const width = this.measureText(this._text.slice(start, end))!.width;
+      
+      // 绘制选区背景
+      context.fillStyle = this._selectionColor;
+      context.fillRect(startX, -this._fontSize / 2, width, this._fontSize);
+    }
+
     if (this.relativeFillColor.a > 0) {
       context.fillStyle = this.relativeFillColor.toHex();
       context.fillText(this._text, 0, 0);
@@ -138,10 +214,7 @@ class Text extends Shape<Text> {
     }
 
     if (this._isEditing && this._cursorVisible) {
-      const cursorX = this.measureText(
-        context,
-        this._text.slice(0, this._cursorPosition)
-      )!.width;
+      const cursorX = this._cursorPosition === 0 ? 0 : this.measureText(this._text.slice(0, this._cursorPosition))!.width;
       context.beginPath();
       context.moveTo(cursorX, -this._fontSize / 2);
       context.lineTo(cursorX, this._fontSize / 2);
@@ -247,11 +320,6 @@ class Text extends Shape<Text> {
         offsetY = -textHeight * 0.75;
     }
 
-    if (this._direction === "rtl") {
-      // 对于RTL文本,需要翻转X轴的偏移
-      offsetX = -offsetX - textWidth;
-    }
-
     const { x, y } = this.absolutePosition;
     const scale = this.absoluteScale;
 
@@ -272,119 +340,70 @@ class Text extends Shape<Text> {
    * @returns 最近的字符索引
    */
   getIndexFromPoint(x: number, y: number): number {
-    const context = document.createElement("canvas").getContext("2d")!;
-    const metrics = this.measureText(context);
-    if (!metrics) return 0;
-
     const lines = this._text.split("\n");
-    let totalHeight = 0;
-    let lineIndex = 0;
-
-    // TODO: 不应该使用估算行高，但由于 canvas 不支持获取/设置行高
-    // 估算行高，可以根据需要调整这个倍数
-    const estimatedLineHeight = this._fontSize * 1.2;
-
-    if (this._direction === "rtl") {
-      // 对于RTL文本，需要从右到左遍历
-      for (let i = lines.length - 1; i >= 0; i--) {
-        if (totalHeight + this._fontSize > y) {
-          lineIndex = i;
-          break;
-        }
-        totalHeight += estimatedLineHeight;
-      }
-    } else {
-      // 找到正确的行
-      for (let i = 0; i < lines.length; i++) {
-        if (totalHeight + this._fontSize > y) {
-          lineIndex = i;
-          break;
-        }
-        totalHeight += estimatedLineHeight;
-      }
-    }
-
-    // 如果点击在最后一行之后，返回文本长度
-    if (lineIndex >= lines.length) return this._text.length;
-
+    const lineHeight = this._fontSize * 1.2; // 估算行高
+    
+    let lineIndex = Math.floor(y / lineHeight);
+    lineIndex = Math.max(0, Math.min(lineIndex, lines.length - 1));
+    
     const line = lines[lineIndex];
-    let totalWidth = 0;
-    let charIndex = 0;
-
-    // 考虑文本对齐方式
-    const lineWidth = this.measureText(context, line)!.width;
-    let startX = 0;
-    switch (this._textAlign) {
-      case "center":
-        startX = -lineWidth / 2;
-        break;
-      case "right":
-        startX = -lineWidth;
-        break;
-      default: // 'left'
-        startX = 0;
-    }
-
-    // 如果点击位置在当前行文本起始位置之前，返回行首索引
-    if (x < startX)
-      return (
-        this._text.split("\n").slice(0, lineIndex).join("\n").length + lineIndex
-      );
-
-    if (this._direction === 'rtl') {
-      // 对于RTL文本，需要从右到左遍历
-      for (let i = line.length - 1; i >= 0; i--) {
-        const char = line[i];
-        const charWidth = this.measureText(context, char)!.width;
-        totalWidth += charWidth;
-  
-        if (startX + lineWidth - totalWidth <= x) {
-          charIndex = i;
-          break;
-        }
+    
+    let low = 0;
+    let high = line.length;
+    
+    // 二分，本质在[0, width]找到最接近x轴最接近的字符
+    while (low < high) {
+      const mid = Math.floor((low + high) / 2);
+      const width = this.measureText(line.slice(0, mid))!.width;
+      if (width >= x) {
+        high = mid;
+      } else {
+        low = mid + 1;
       }
-    } else {
-      // 遍历每个字符，累加宽度直到超过点击位置
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        const charWidth = this.measureText(context, char)!.width;
-        totalWidth += charWidth;
-  
-        if (startX + totalWidth >= x) {
-          // 如果点击位置更接近这个字符的左半边，返回当前索引
-          // 否则返回下一个索引
-          charIndex =
-            x - (startX + totalWidth - charWidth) < startX + totalWidth - x
-              ? i
-              : i + 1;
-          break;
-        }
+    }
+    
+    if(low === 0) {
+      const currentWidth = this.measureText(line.slice(0, 1))!.width;
+      if(x > currentWidth / 2) {
+        low++;
+      }
+    } else if (low > 0 && low <= line.length) {
+      // 检查点是否在字符的中心偏右侧，如果是则返回左侧索引
+      const leftWidth = this.measureText(line.slice(0, low - 1))!.width;
+      const currentWidth = this.measureText(line.slice(0, low))!.width;
+      const charWidth = currentWidth - leftWidth;
+      
+      // 如果点在字符的中心偏右侧，则返回左侧的索引
+      if (x < leftWidth + charWidth / 2) {
+        low = low - 1;
       }
     }
 
-
-    // 计算总的索引位置
-    const previousLinesLength = this._text
-      .split("\n")
-      .slice(0, lineIndex)
-      .join("\n").length;
-    return previousLinesLength + (lineIndex > 0 ? lineIndex : 0) + charIndex;
+    return lines.slice(0, lineIndex).join("\n").length + low;
   }
 
   /** 测量文本 */
+  measureText(text: string): TextMetrics | undefined
+  measureText(context?: CanvasRenderingContext2D, text?: string): TextMetrics | undefined
   measureText(
-    context?: CanvasRenderingContext2D,
+    contextOrText?: CanvasRenderingContext2D | string,
     text?: string
   ): TextMetrics | undefined {
-    const currentContext =
-      context || document.createElement("canvas").getContext("2d");
-
-    if (!currentContext) return;
-
-    currentContext.save();
-    currentContext.font = `${this._fontSize}px ${this._fontFamily}`;
-    const metrics = currentContext.measureText(text || this._text);
-    currentContext.restore();
+    let currentContext: CanvasRenderingContext2D;
+    if(contextOrText instanceof CanvasRenderingContext2D) {
+      currentContext = contextOrText;
+    } else {
+      currentContext = document.createElement("canvas").getContext("2d")!;
+      currentContext.font = `${this._fontSize}px ${this._fontFamily}`;
+      currentContext.textAlign = this._textAlign;
+      currentContext.textBaseline = this._textBaseline;
+      currentContext.direction = this._direction;
+      currentContext.translate(this.absolutePosition.x, this.absolutePosition.y);
+      currentContext.rotate(this.absoluteRotation);
+      currentContext.scale(this.absoluteScale.x, this.absoluteScale.y);
+    }
+    const actualText = text ?? (typeof contextOrText === 'string' ? contextOrText : undefined);
+    const metrics = currentContext.measureText(actualText ?? this._text);
     return metrics;
   }
 
@@ -426,6 +445,48 @@ class Text extends Shape<Text> {
 
   set textBaseline(value: CanvasTextBaseline) {
     this._textBaseline = value;
+    this.isUpdate = true;
+  }
+
+  /** 设置选区范围 */
+  setSelectionRange(start: number, end: number): void {
+    if (!this._userSelect) return;
+    
+    this._selectionStart = Math.max(0, Math.min(start, this._text.length));
+    this._selectionEnd = Math.max(0, Math.min(end, this._text.length));
+    this._cursorPosition = this._selectionEnd;
+    this.isUpdate = true;
+  }
+
+  get selectionStart(): number {
+    return this._selectionStart;
+  }
+
+  get selectionEnd(): number {
+    return this._selectionEnd;
+  }
+
+  get isSelecting(): boolean {
+    return this._isSelecting;
+  }
+
+  get userSelect(): boolean {
+    return this._userSelect;
+  }
+
+  set userSelect(value: boolean) {
+    this._userSelect = value;
+    if (!value) {
+      this.clearSelection();
+    }
+  }
+
+  get selectionColor(): string {
+    return this._selectionColor;
+  }
+
+  set selectionColor(value: string) {
+    this._selectionColor = value;
     this.isUpdate = true;
   }
 }

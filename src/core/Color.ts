@@ -17,7 +17,7 @@ export enum ColorType {
   /** 橙色 */
   Magenta = "magenta",
   /** 透明 */
-  Transparent = "transparent"
+  Transparent = "transparent",
 }
 
 export class Color {
@@ -36,7 +36,10 @@ export class Color {
     a: number = 1
   ) {
     if (typeof colorOrR === "string") {
-      if (Object.values(ColorType).includes(colorOrR as ColorType) || colorOrR in ColorType) {
+      if (
+        Object.values(ColorType).includes(colorOrR as ColorType) ||
+        colorOrR in ColorType
+      ) {
         // 假设是颜色类型
         const { r, g, b, a } = Color.fromColorType(colorOrR as ColorType);
         this.r = r;
@@ -67,26 +70,26 @@ export class Color {
   /** 颜色类型转换为 RGBA */
   static fromColorType(colorType: ColorType): Color {
     switch (colorType) {
-        case ColorType.White:
-            return new Color(255, 255, 255);
-        case ColorType.Black:
-            return new Color(0, 0, 0);
-        case ColorType.Red:
-            return new Color(255, 0, 0);
-        case ColorType.Green:
-            return new Color(0, 255, 0);
-        case ColorType.Blue:
-            return new Color(0, 0, 255);
-        case ColorType.Yellow:
-            return new Color(255, 255, 0);
-        case ColorType.Cyan:
-            return new Color(0, 255, 255);
-        case ColorType.Magenta:
-            return new Color(255, 0, 255);
-        case ColorType.Transparent:
-            return new Color(0, 0, 0, 0);
+      case ColorType.White:
+        return new Color(255, 255, 255);
+      case ColorType.Black:
+        return new Color(0, 0, 0);
+      case ColorType.Red:
+        return new Color(255, 0, 0);
+      case ColorType.Green:
+        return new Color(0, 255, 0);
+      case ColorType.Blue:
+        return new Color(0, 0, 255);
+      case ColorType.Yellow:
+        return new Color(255, 255, 0);
+      case ColorType.Cyan:
+        return new Color(0, 255, 255);
+      case ColorType.Magenta:
+        return new Color(255, 0, 255);
+      case ColorType.Transparent:
+        return new Color(0, 0, 0, 0);
     }
-}
+  }
   /** HEX - 创建颜色的静态方法 */
   static fromHex(hex: string): Color {
     hex = hex.replace(/^#/, "");
@@ -142,12 +145,14 @@ export class Color {
 
   /** 转换为十六进制字符串 */
   toHex(): string {
-    const r = Math.round(this.r).toString(16).padStart(2, '0');
-    const g = Math.round(this.g).toString(16).padStart(2, '0');
-    const b = Math.round(this.b).toString(16).padStart(2, '0');
-    
+    const r = Math.round(this.r).toString(16).padStart(2, "0");
+    const g = Math.round(this.g).toString(16).padStart(2, "0");
+    const b = Math.round(this.b).toString(16).padStart(2, "0");
+
     // 将 alpha 值（0-1）转换为两位十六进制（00-FF）
-    const a = Math.round(this.a * 255).toString(16).padStart(2, '0');
+    const a = Math.round(this.a * 255)
+      .toString(16)
+      .padStart(2, "0");
 
     return `#${r}${g}${b}${a}`;
   }
